@@ -12,13 +12,13 @@
 ## Installation
 
 ```bash
-npm install reolink-aio-ts
+npm install reolink-aio
 ```
 
 ## Quick Start
 
 ```typescript
-import { Host } from 'reolink-aio-ts';
+import { Host } from 'reolink-aio';
 
 // Create a connection
 const host = new Host('192.168.1.100', 'admin', 'your_password');
@@ -77,13 +77,10 @@ Reolink NVRs support multiple cameras (channels). Most methods accept a channel 
 
 ```typescript
 // Single camera (channel 0)
-await host.setIrLights(0, true);
-
 // Multiple channels on NVR
 for (const channel of host.channels) {
   console.log(host.cameraName(channel));
 }
-```
 
 ## API Reference
 

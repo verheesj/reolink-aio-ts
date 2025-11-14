@@ -1,6 +1,6 @@
 # Reolink AIO TypeScript Examples
 
-This directory contains practical examples demonstrating how to use the `reolink-aio-ts` library.
+This directory contains practical examples demonstrating how to use the `reolink-aio` library.
 
 ## Prerequisites
 

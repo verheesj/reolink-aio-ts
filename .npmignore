@@ -1,0 +1,44 @@
+# Source files
+src/
+examples/
+tests/
+
+# Config files
+tsconfig.json
+tsconfig.build.json
+tsconfig.cjs.json
+jest.config.ts
+
+# Test and coverage (exclude from dist too)
+coverage/
+*.test.ts
+*.test.js
+*.test.js.map
+*.test.d.ts
+__tests__/
+dist/**/__tests__/
+dist/**/*.test.*
+
+# Development files
+test-*.ts
+test-*.js
+*.log
+.env
+.DS_Store
+
+# Build artifacts (keep dist/)
+node_modules/
+
+# Documentation and misc
+README.md.backup
+VOD_GUIDE.md
+downloads/
+.github/
+SUBMISSION_READY.md
+PUBLISHING.md
+
+# Scripts
+publish.sh
+
+# Example files
+example-*.ts

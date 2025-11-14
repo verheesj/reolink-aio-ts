@@ -5,8 +5,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
+![Status: Pre-release](https://img.shields.io/badge/status-pre--release-orange.svg)
 
 **A modern, fully-typed TypeScript library for controlling Reolink cameras and NVRs**
+
+This project implements Reolink’s private Baichuan API — the same API used by the official Reolink iOS/Android apps and the Reolink CLI. The implementation is informed by and based on the excellent Python project [reolink-aio](https://github.com/starkillerOG/reolink_aio).
 
 [Features](#-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Examples](#-examples) • [API](#-api-reference) • [TODO](#-todo--roadmap)
 
@@ -20,7 +23,7 @@
 
 - ✅ **Full TypeScript Support** - Complete type safety and IntelliSense
 - ✅ **HTTP API Client** - Comprehensive REST API implementation
-- ✅ **Baichuan Protocol** - Real-time push events via TCP
+- ✅ **Baichuan API/Protocol** - Implements Reolink’s Baichuan API (same as official apps/CLI); real-time push events via TCP
 - ✅ **NVR & Camera Support** - Works with both standalone cameras and NVR systems
 - ✅ **VOD (Video on Demand)** - Search, browse, and download recorded clips
 - ✅ **Session Management** - Automatic token refresh and connection handling
@@ -64,8 +67,10 @@
 ## 📦 Installation
 
 ```bash
-npm install reolink-aio-ts
+npm install reolink-aio@next
 ```
+
+Note: This package is currently a pre-release. Interfaces and behavior may change between versions. For stability, pin an exact version or wait for a 1.0.0 stable release.
 
 ---
 
@@ -74,7 +79,7 @@ npm install reolink-aio-ts
 ### Basic Connection
 
 ```typescript
-import { Host } from 'reolink-aio-ts';
+import { Host } from 'reolink-aio';
 
 const host = new Host('192.168.1.100', 'admin', 'your-password');
 
@@ -88,7 +93,7 @@ console.log(`Channels: ${host.channelsValue.length}`);
 ### Device Control
 
 ```typescript
-import { Host } from 'reolink-aio-ts';
+import { Host } from 'reolink-aio';
 
 const host = new Host('192.168.1.100', 'admin', 'your-password');
 await host.getHostData();
@@ -114,7 +119,7 @@ await host.setFocus(0, 128); // Set focus position (0-255 typically)
 ### Real-Time Motion Detection
 
 ```typescript
-import { Host } from 'reolink-aio-ts';
+import { Host } from 'reolink-aio';
 
 const host = new Host('192.168.1.100', 'admin', 'your-password');
 await host.getHostData();
@@ -141,7 +146,7 @@ setInterval(async () => {
 ### Download Video Clips
 
 ```typescript
-import { Host } from 'reolink-aio-ts';
+import { Host } from 'reolink-aio';
 import * as fs from 'fs';
 
 const host = new Host('192.168.1.100', 'admin', 'your-password');

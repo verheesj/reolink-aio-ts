@@ -50,7 +50,7 @@ All device control features now work correctly:
 All features work correctly when using proper initialization:
 
 ```typescript
-import { Host } from 'reolink-aio-ts';
+import { Host } from 'reolink-aio';
 
 const host = new Host('192.168.1.100', 'admin', 'password');
 

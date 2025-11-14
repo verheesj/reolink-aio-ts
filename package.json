@@ -1,6 +1,6 @@
 {
-  "name": "reolink-aio-ts",
-  "version": "1.0.0",
+  "name": "reolink-aio",
+  "version": "0.1.0-alpha.0",
   "description": "TypeScript library for Reolink NVR/camera API with full Baichuan TCP protocol support",
   "license": "MIT",
   "author": "verheesj",
@@ -24,10 +24,18 @@
     }
   },
   "files": [
-    "dist/esm",
-    "dist/cjs",
-    "dist/types"
+    "dist/esm/**/*.js",
+    "dist/esm/**/*.js.map",
+    "dist/cjs/**/*.js",
+    "dist/cjs/**/*.js.map",
+    "dist/types/**/*.d.ts",
+    "!dist/**/__tests__",
+    "!dist/**/*.test.*",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
+  "publishConfig": { "tag": "next" },
   "scripts": {
     "build": "npm run build:esm && npm run build:cjs",
     "build:esm": "tsc -p tsconfig.build.json",
