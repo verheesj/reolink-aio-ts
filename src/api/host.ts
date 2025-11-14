@@ -13,9 +13,9 @@ import {
   NotSupportedError,
   ReolinkError
 } from "../exceptions";
-import { VodRequestType } from "../enums";
+import { VodRequestType, PtzEnum, GuardEnum, TrackMethodEnum } from "../enums";
 import { datetimeToReolinkTime } from "../utils";
-import type { ReolinkJson } from "../types";
+import type { ReolinkJson, PtzPresetsResponse, PtzPatrolsResponse, PtzGuardResponse, PtzCurPosResponse, AutoTrackSettings, AutoTrackLimits } from "../types";
 import { VODFile, VODSearchStatus } from "../types";
 
 const DEBUG_ENABLED = Boolean(process?.env?.REOLINK_AIO_DEBUG);
@@ -89,6 +89,16 @@ export class Host {
   private hostDataRaw: Map<string, any> = new Map();
   private hddInfo: Array<any> = [];
   private irSettings: Map<number, any> = new Map();
+
+  // PTZ settings
+  private ptzPresets: Map<number, Record<string, number>> = new Map();
+  private ptzPatrols: Map<number, Record<string, number>> = new Map();
+  private ptzPresetsSettings: Map<number, any> = new Map();
+  private ptzPatrolSettings: Map<number, any> = new Map();
+  private ptzGuardSettings: Map<number, any> = new Map();
+  private ptzPosition: Map<number, any> = new Map();
+  private autoTrackSettings: Map<number, any> = new Map();
+  private autoTrackLimits: Map<number, any> = new Map();
 
   // Mutexes for async operations
   private sendMutex: Promise<void> = Promise.resolve();
@@ -213,7 +223,13 @@ export class Host {
         { cmd: "GetIsp", action: 0, param: { channel: channel } },
         { cmd: "GetIrLights", action: 0, param: { channel: channel } },
         { cmd: "GetWhiteLed", action: 0, param: { channel: channel } },
-        { cmd: "GetOsd", action: 0, param: { channel: channel } }
+        { cmd: "GetOsd", action: 0, param: { channel: channel } },
+        { cmd: "GetPtzPreset", action: 0, param: { channel: channel } },
+        { cmd: "GetPtzPatrol", action: 0, param: { channel: channel } },
+        { cmd: "GetPtzGuard", action: 0, param: { channel: channel } },
+        { cmd: "GetPtzCurPos", action: 0, param: { PtzCurPos: { channel: channel } } },
+        { cmd: "GetAiCfg", action: 0, param: { channel: channel } },
+        { cmd: "GetPtzTraceSection", action: 0, param: { PtzTraceSection: { channel: channel } } }
       ];
 
       body.push(...chBody);
@@ -320,6 +336,37 @@ export class Host {
           if (osd.osdChannel && osd.osdChannel.name) {
             this.name.set(channel, osd.osdChannel.name);
           }
+        } else if (data.cmd === "GetPtzPreset" && data.value) {
+          this.ptzPresetsSettings.set(channel, data.value);
+          const presets: Record<string, number> = {};
+          if (data.value.PtzPreset && Array.isArray(data.value.PtzPreset)) {
+            for (const preset of data.value.PtzPreset) {
+              if (parseInt(preset.enable, 10) === 1) {
+                presets[preset.name] = parseInt(preset.id, 10);
+              }
+            }
+          }
+          this.ptzPresets.set(channel, presets);
+        } else if (data.cmd === "GetPtzPatrol" && data.value) {
+          this.ptzPatrolSettings.set(channel, data.value);
+          const patrols: Record<string, number> = {};
+          if (data.value.PtzPatrol && Array.isArray(data.value.PtzPatrol)) {
+            for (const patrol of data.value.PtzPatrol) {
+              if (parseInt(patrol.enable, 10) === 1) {
+                const patrolName = patrol.name || `patrol ${patrol.id}`;
+                patrols[patrolName] = parseInt(patrol.id, 10);
+              }
+            }
+          }
+          this.ptzPatrols.set(channel, patrols);
+        } else if (data.cmd === "GetPtzGuard" && data.value) {
+          this.ptzGuardSettings.set(channel, data.value);
+        } else if (data.cmd === "GetPtzCurPos" && data.value) {
+          this.ptzPosition.set(channel, data.value.PtzCurPos || {});
+        } else if (data.cmd === "GetAiCfg" && data.value) {
+          this.autoTrackSettings.set(channel, data.value);
+        } else if (data.cmd === "GetPtzTraceSection" && data.value) {
+          this.autoTrackLimits.set(channel, data.value);
         }
       } catch (err) {
         debugLog(`Error parsing channel response for ${data.cmd} on channel ${channel}: ${err}`);
@@ -989,6 +1036,526 @@ export class Host {
       throw new ApiError(
         `setZoom failed with code ${jsonData[0]?.code || -1}`,
         "StartZoomFocus",
+        jsonData[0]?.code || -1
+      );
+    }
+  }
+
+  // PTZ (Pan-Tilt-Zoom) Methods
+
+  /**
+   * Get PTZ presets for a channel
+   * Returns a map of preset names to preset IDs
+   * @param channel - Channel number
+   * @returns Map of preset names to IDs
+   */
+  getPtzPresets(channel: number): Record<string, number> {
+    if (!this.ptzPresets.has(channel)) {
+      return {};
+    }
+    return this.ptzPresets.get(channel)!;
+  }
+
+  /**
+   * Get PTZ patrols for a channel
+   * Returns a map of patrol names to patrol IDs
+   * @param channel - Channel number
+   * @returns Map of patrol names to IDs
+   */
+  getPtzPatrols(channel: number): Record<string, number> {
+    if (!this.ptzPatrols.has(channel)) {
+      return {};
+    }
+    return this.ptzPatrols.get(channel)!;
+  }
+
+  /**
+   * Send a PTZ control command
+   * @param channel - Channel number
+   * @param command - PTZ command from PtzEnum (e.g., "Left", "Right", "Up", "Down", "ZoomInc", "ZoomDec")
+   * @param preset - Preset ID or name to move to (uses "ToPos" command)
+   * @param speed - Optional speed value for PTZ movement
+   * @param patrol - Patrol ID to start/stop
+   */
+  async ptzControl(
+    channel: number,
+    command?: string,
+    preset?: number | string,
+    speed?: number,
+    patrol?: number
+  ): Promise<void> {
+    if (!this.channels.includes(channel)) {
+      throw new InvalidParameterError(`ptzControl: no camera connected to channel '${channel}'`);
+    }
+
+    if (speed !== undefined && !Number.isInteger(speed)) {
+      throw new InvalidParameterError(`ptzControl: speed ${speed} must be an integer`);
+    }
+
+    const validCommands = Object.values(PtzEnum);
+    if (command && !validCommands.includes(command as PtzEnum) && patrol === undefined) {
+      throw new InvalidParameterError(
+        `ptzControl: command '${command}' not in valid commands: ${validCommands.join(', ')}`
+      );
+    }
+
+    let actualCommand = command;
+    let presetId: number | undefined;
+
+    // Handle preset
+    if (preset !== undefined) {
+      actualCommand = "ToPos";
+      if (typeof preset === "string") {
+        const presets = this.getPtzPresets(channel);
+        if (!(preset in presets)) {
+          throw new InvalidParameterError(
+            `ptzControl: preset '${preset}' not in available presets: ${Object.keys(presets).join(', ')}`
+          );
+        }
+        presetId = presets[preset];
+      } else {
+        if (!Number.isInteger(preset)) {
+          throw new InvalidParameterError(`ptzControl: preset ${preset} must be an integer`);
+        }
+        presetId = preset;
+      }
+    }
+
+    if (!actualCommand) {
+      throw new InvalidParameterError("ptzControl: No command or preset specified");
+    }
+
+    const param: Record<string, any> = {
+      channel: channel,
+      op: actualCommand
+    };
+
+    if (speed !== undefined) {
+      param.speed = speed;
+    }
+    if (presetId !== undefined) {
+      param.id = presetId;
+    }
+    if (patrol !== undefined) {
+      param.id = patrol;
+    }
+
+    const body: ReolinkJson = [
+      {
+        cmd: "PtzCtrl",
+        action: 0,
+        param: param
+      }
+    ];
+
+    const jsonData = await this.send(body, null, "json");
+
+    if (jsonData[0]?.code !== 0) {
+      throw new ApiError(
+        `ptzControl failed with code ${jsonData[0]?.code || -1}`,
+        "PtzCtrl",
+        jsonData[0]?.code || -1
+      );
+    }
+  }
+
+  /**
+   * Move PTZ camera to a preset position
+   * @param channel - Channel number
+   * @param preset - Preset ID or preset name
+   */
+  async gotoPreset(channel: number, preset: number | string): Promise<void> {
+    await this.ptzControl(channel, undefined, preset);
+  }
+
+  /**
+   * Start PTZ patrol
+   * Starts the first available patrol for the channel
+   * @param channel - Channel number
+   */
+  async startPatrol(channel: number): Promise<void> {
+    const patrols = this.getPtzPatrols(channel);
+    const patrolIds = Object.values(patrols);
+    
+    if (patrolIds.length === 0) {
+      throw new NotSupportedError(`startPatrol: no patrols configured for channel ${channel}`);
+    }
+
+    await this.ptzControl(channel, "StartPatrol", undefined, undefined, patrolIds[0]);
+  }
+
+  /**
+   * Stop PTZ patrol
+   * Stops the first available patrol for the channel
+   * @param channel - Channel number
+   */
+  async stopPatrol(channel: number): Promise<void> {
+    const patrols = this.getPtzPatrols(channel);
+    const patrolIds = Object.values(patrols);
+    
+    if (patrolIds.length === 0) {
+      throw new NotSupportedError(`stopPatrol: no patrols configured for channel ${channel}`);
+    }
+
+    await this.ptzControl(channel, "StopPatrol", undefined, undefined, patrolIds[0]);
+  }
+
+  /**
+   * Get current PTZ pan position
+   * @param channel - Channel number
+   * @returns Pan position (0-3600) or null if not available
+   */
+  getPtzPanPosition(channel: number): number | null {
+    return this.ptzPosition.get(channel)?.Ppos ?? null;
+  }
+
+  /**
+   * Get current PTZ tilt position
+   * @param channel - Channel number
+   * @returns Tilt position (0-900) or null if not available
+   */
+  getPtzTiltPosition(channel: number): number | null {
+    return this.ptzPosition.get(channel)?.Tpos ?? null;
+  }
+
+  /**
+   * Check if PTZ guard position is enabled
+   * @param channel - Channel number
+   * @returns true if guard is enabled and position exists
+   */
+  isPtzGuardEnabled(channel: number): boolean {
+    if (!this.ptzGuardSettings.has(channel)) {
+      return false;
+    }
+
+    const values = this.ptzGuardSettings.get(channel)?.PtzGuard;
+    return values?.benable === 1 && values?.bexistPos === 1;
+  }
+
+  /**
+   * Get PTZ guard return time
+   * @param channel - Channel number
+   * @returns Guard return time in seconds (default: 60)
+   */
+  getPtzGuardTime(channel: number): number {
+    if (!this.ptzGuardSettings.has(channel)) {
+      return 60;
+    }
+
+    return this.ptzGuardSettings.get(channel)?.PtzGuard?.timeout ?? 60;
+  }
+
+  /**
+   * Set PTZ guard position
+   * @param channel - Channel number
+   * @param command - Guard command ("setPos" or "toPos")
+   * @param enable - Enable/disable guard
+   * @param time - Guard return time in seconds
+   */
+  async setPtzGuard(
+    channel: number,
+    command?: string,
+    enable?: boolean,
+    time?: number
+  ): Promise<void> {
+    if (!this.channels.includes(channel)) {
+      throw new InvalidParameterError(`setPtzGuard: no camera connected to channel '${channel}'`);
+    }
+
+    if (time !== undefined && !Number.isInteger(time)) {
+      throw new InvalidParameterError(`setPtzGuard: guard time ${time} must be an integer`);
+    }
+
+    const validCommands = Object.values(GuardEnum);
+    if (command && !validCommands.includes(command as GuardEnum)) {
+      throw new InvalidParameterError(
+        `setPtzGuard: command '${command}' not in valid commands: ${validCommands.join(', ')}`
+      );
+    }
+
+    const params: Record<string, any> = {
+      channel: channel
+    };
+
+    if (command) {
+      params.cmdStr = command;
+      if (command === GuardEnum.set) {
+        params.bSaveCurrentPos = 1;
+      }
+    } else {
+      params.cmdStr = GuardEnum.set;
+    }
+
+    if (enable !== undefined) {
+      params.benable = enable ? 1 : 0;
+    }
+
+    if (time !== undefined) {
+      params.timeout = time;
+    }
+
+    const body: ReolinkJson = [
+      {
+        cmd: "SetPtzGuard",
+        action: 0,
+        param: {
+          PtzGuard: params
+        }
+      }
+    ];
+
+    const jsonData = await this.send(body, null, "json");
+
+    if (jsonData[0]?.code !== 0) {
+      throw new ApiError(
+        `setPtzGuard failed with code ${jsonData[0]?.code || -1}`,
+        "SetPtzGuard",
+        jsonData[0]?.code || -1
+      );
+    }
+  }
+
+  /**
+   * Calibrate PTZ camera
+   * @param channel - Channel number
+   */
+  async ptzCalibrate(channel: number): Promise<void> {
+    if (!this.channels.includes(channel)) {
+      throw new InvalidParameterError(`ptzCalibrate: no camera connected to channel '${channel}'`);
+    }
+
+    const body: ReolinkJson = [
+      {
+        cmd: "PtzCheck",
+        action: 0,
+        param: {
+          channel: channel
+        }
+      }
+    ];
+
+    const jsonData = await this.send(body, null, "json");
+
+    if (jsonData[0]?.code !== 0) {
+      throw new ApiError(
+        `ptzCalibrate failed with code ${jsonData[0]?.code || -1}`,
+        "PtzCheck",
+        jsonData[0]?.code || -1
+      );
+    }
+  }
+
+  /**
+   * Check if auto-tracking is enabled
+   * @param channel - Channel number
+   * @returns true if auto-tracking is enabled
+   */
+  isAutoTrackingEnabled(channel: number): boolean {
+    if (!this.autoTrackSettings.has(channel)) {
+      return false;
+    }
+
+    const settings = this.autoTrackSettings.get(channel);
+    if (settings?.bSmartTrack !== undefined) {
+      return settings.bSmartTrack === 1;
+    }
+
+    return settings?.aiTrack === 1;
+  }
+
+  /**
+   * Get auto-tracking disappear time
+   * @param channel - Channel number
+   * @returns Time in seconds before tracking stops after target disappears (-1 if not available)
+   */
+  getAutoTrackDisappearTime(channel: number): number {
+    if (!this.autoTrackSettings.has(channel)) {
+      return -1;
+    }
+
+    return this.autoTrackSettings.get(channel)?.aiDisappearBackTime ?? -1;
+  }
+
+  /**
+   * Get auto-tracking stop time
+   * @param channel - Channel number
+   * @returns Time in seconds before camera returns to guard (-1 if not available)
+   */
+  getAutoTrackStopTime(channel: number): number {
+    if (!this.autoTrackSettings.has(channel)) {
+      return -1;
+    }
+
+    return this.autoTrackSettings.get(channel)?.aiStopBackTime ?? -1;
+  }
+
+  /**
+   * Get auto-tracking method
+   * @param channel - Channel number
+   * @returns Tracking method value or null
+   */
+  getAutoTrackMethod(channel: number): number | null {
+    if (!this.autoTrackSettings.has(channel)) {
+      return null;
+    }
+
+    return this.autoTrackSettings.get(channel)?.aiTrack ?? null;
+  }
+
+  /**
+   * Set auto-tracking settings
+   * @param channel - Channel number
+   * @param enable - Enable/disable tracking
+   * @param disappearTime - Time before stopping after target disappears
+   * @param stopTime - Time before returning to guard
+   * @param method - Tracking method (from TrackMethodEnum or numeric value)
+   */
+  async setAutoTracking(
+    channel: number,
+    enable?: boolean,
+    disappearTime?: number,
+    stopTime?: number,
+    method?: number | string
+  ): Promise<void> {
+    if (!this.channels.includes(channel)) {
+      throw new InvalidParameterError(`setAutoTracking: no camera connected to channel '${channel}'`);
+    }
+
+    const params: Record<string, any> = {
+      channel: channel
+    };
+
+    if (enable !== undefined) {
+      const settings = this.autoTrackSettings.get(channel);
+      if (settings?.bSmartTrack !== undefined) {
+        params.bSmartTrack = enable ? 1 : 0;
+      } else {
+        params.aiTrack = enable ? 1 : 0;
+      }
+    }
+
+    if (disappearTime !== undefined) {
+      params.aiDisappearBackTime = disappearTime;
+    }
+
+    if (stopTime !== undefined) {
+      params.aiStopBackTime = stopTime;
+    }
+
+    if (method !== undefined) {
+      let methodInt: number;
+      if (typeof method === "string") {
+        methodInt = TrackMethodEnum[method as keyof typeof TrackMethodEnum];
+      } else {
+        methodInt = method;
+      }
+
+      const validMethods = Object.values(TrackMethodEnum).filter(v => typeof v === "number");
+      if (!validMethods.includes(methodInt)) {
+        throw new InvalidParameterError(
+          `setAutoTracking: method ${methodInt} not in valid methods: ${validMethods.join(', ')}`
+        );
+      }
+
+      params.aiTrack = methodInt;
+    }
+
+    const body: ReolinkJson = [
+      {
+        cmd: "SetAiCfg",
+        action: 0,
+        param: params
+      }
+    ];
+
+    const jsonData = await this.send(body, null, "json");
+
+    if (jsonData[0]?.code !== 0) {
+      throw new ApiError(
+        `setAutoTracking failed with code ${jsonData[0]?.code || -1}`,
+        "SetAiCfg",
+        jsonData[0]?.code || -1
+      );
+    }
+  }
+
+  /**
+   * Get auto-tracking left limit
+   * @param channel - Channel number
+   * @returns Left limit (0-2700, -1 if not set)
+   */
+  getAutoTrackLimitLeft(channel: number): number {
+    if (!this.autoTrackLimits.has(channel)) {
+      return -1;
+    }
+
+    return this.autoTrackLimits.get(channel)?.PtzTraceSection?.LimitLeft ?? -1;
+  }
+
+  /**
+   * Get auto-tracking right limit
+   * @param channel - Channel number
+   * @returns Right limit (0-2700, -1 if not set)
+   */
+  getAutoTrackLimitRight(channel: number): number {
+    if (!this.autoTrackLimits.has(channel)) {
+      return -1;
+    }
+
+    return this.autoTrackLimits.get(channel)?.PtzTraceSection?.LimitRight ?? -1;
+  }
+
+  /**
+   * Set auto-tracking limits
+   * @param channel - Channel number
+   * @param left - Left limit (0-2700, -1 to disable)
+   * @param right - Right limit (0-2700, -1 to disable)
+   */
+  async setAutoTrackLimit(channel: number, left?: number, right?: number): Promise<void> {
+    if (!this.channels.includes(channel)) {
+      throw new InvalidParameterError(`setAutoTrackLimit: no camera connected to channel '${channel}'`);
+    }
+
+    if (left === undefined && right === undefined) {
+      throw new InvalidParameterError("setAutoTrackLimit: either left or right limit must be specified");
+    }
+
+    if (left !== undefined && (left < -1 || left > 2700)) {
+      throw new InvalidParameterError(`setAutoTrackLimit: left limit ${left} not in range -1...2700`);
+    }
+
+    if (right !== undefined && (right < -1 || right > 2700)) {
+      throw new InvalidParameterError(`setAutoTrackLimit: right limit ${right} not in range -1...2700`);
+    }
+
+    const params: Record<string, any> = {
+      channel: channel
+    };
+
+    if (left !== undefined) {
+      params.LimitLeft = left;
+    }
+
+    if (right !== undefined) {
+      params.LimitRight = right;
+    }
+
+    const body: ReolinkJson = [
+      {
+        cmd: "SetPtzTraceSection",
+        action: 0,
+        param: {
+          PtzTraceSection: params
+        }
+      }
+    ];
+
+    const jsonData = await this.send(body, null, "json");
+
+    if (jsonData[0]?.code !== 0) {
+      throw new ApiError(
+        `setAutoTrackLimit failed with code ${jsonData[0]?.code || -1}`,
+        "SetPtzTraceSection",
         jsonData[0]?.code || -1
       );
     }

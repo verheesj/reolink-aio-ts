@@ -813,3 +813,112 @@ export function parseVODFile(data: Record<string, any>, tzinfo?: ReolinkTimezone
   return new VODFile(data, tzinfo);
 }
 
+/**
+ * PTZ preset information
+ */
+export interface PtzPreset {
+  /** Preset ID */
+  id: number;
+  /** Preset name */
+  name: string;
+  /** Whether preset is enabled */
+  enable: number;
+}
+
+/**
+ * PTZ patrol information
+ */
+export interface PtzPatrol {
+  /** Patrol ID */
+  id: number;
+  /** Patrol name */
+  name: string;
+  /** Whether patrol is enabled */
+  enable: number;
+}
+
+/**
+ * PTZ guard position settings
+ */
+export interface PtzGuard {
+  /** Whether guard position is enabled */
+  benable: number;
+  /** Whether guard position exists */
+  bexistPos: number;
+  /** Timeout in seconds before returning to guard position */
+  timeout: number;
+}
+
+/**
+ * PTZ current position
+ */
+export interface PtzPosition {
+  /** Pan position (0-3600) */
+  Ppos?: number;
+  /** Tilt position (0-900) */
+  Tpos?: number;
+}
+
+/**
+ * PTZ presets response from camera
+ */
+export interface PtzPresetsResponse {
+  /** Array of presets */
+  PtzPreset: PtzPreset[];
+}
+
+/**
+ * PTZ patrols response from camera
+ */
+export interface PtzPatrolsResponse {
+  /** Array of patrols */
+  PtzPatrol: PtzPatrol[];
+}
+
+/**
+ * PTZ guard response from camera
+ */
+export interface PtzGuardResponse {
+  /** Guard position settings */
+  PtzGuard: PtzGuard;
+}
+
+/**
+ * PTZ current position response from camera
+ */
+export interface PtzCurPosResponse {
+  /** Current position */
+  PtzCurPos: PtzPosition;
+}
+
+/**
+ * Auto-tracking settings
+ */
+export interface AutoTrackSettings {
+  /** Channel number */
+  channel?: number;
+  /** Smart track enabled (legacy) */
+  bSmartTrack?: number;
+  /** AI track method */
+  aiTrack?: number;
+  /** Time before tracking stops after target disappears (seconds) */
+  aiDisappearBackTime?: number;
+  /** Time before camera stops and returns to guard (seconds) */
+  aiStopBackTime?: number;
+}
+
+/**
+ * Auto-tracking limit settings
+ */
+export interface AutoTrackLimits {
+  /** PTZ trace section */
+  PtzTraceSection: {
+    /** Channel number */
+    channel?: number;
+    /** Left limit (0-2700, -1 = disabled) */
+    LimitLeft: number;
+    /** Right limit (0-2700, -1 = disabled) */
+    LimitRight: number;
+  };
+}
+

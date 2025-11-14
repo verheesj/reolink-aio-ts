@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2025-01-XX
+
+### Added
+
+#### PTZ (Pan/Tilt/Zoom) Control - Complete Implementation
+
+- **PTZ Movement** - Manual pan/tilt/zoom control with speed settings
+- **Preset Management** - Get presets, go to preset by ID or name
+- **Patrol Management** - Get patrols, start/stop auto patrol
+- **Position Tracking** - Get current pan/tilt positions
+- **Guard Functionality** - Set/goto guard position, configure return time
+- **PTZ Calibration** - Reset and calibrate PTZ mechanisms
+- **Auto-Tracking** - Enable/disable object tracking with configurable settings
+  - Disappear time and stop time configuration
+  - Tracking method selection (digital, digitalfirst, pantiltfirst)
+  - Tracking limit configuration (left/right pan limits)
+- **Comprehensive PTZ Methods**:
+  - `ptzControl(channel, command?, preset?, speed?, patrol?)` - Flexible PTZ control
+  - `gotoPreset(channel, preset)` - Quick preset navigation
+  - `getPtzPresets(channel)` / `getPtzPatrols(channel)` - List available positions
+  - `startPatrol(channel)` / `stopPatrol(channel)` - Patrol control
+  - `getPtzPanPosition(channel)` / `getPtzTiltPosition(channel)` - Position getters
+  - `isPtzGuardEnabled(channel)` / `getPtzGuardTime(channel)` - Guard status
+  - `setPtzGuard(channel, command?, enable?, time?)` - Guard configuration
+  - `ptzCalibrate(channel)` - PTZ calibration
+  - `isAutoTrackingEnabled(channel)` - Tracking status
+  - `setAutoTracking(channel, enable?, disappearTime?, stopTime?, method?)` - Tracking config
+  - `getAutoTrackMethod(channel)` - Current tracking method
+  - `getAutoTrackLimitLeft/Right(channel)` - Tracking limit getters
+  - `setAutoTrackLimit(channel, left?, right?)` - Tracking limit configuration
+
+#### Testing & Examples
+
+- Added 67 comprehensive PTZ unit tests (100% passing)
+- Created PTZ control example (`examples/08-ptz-control.ts`)
+- Updated README with PTZ features and examples
+- Updated API reference with all PTZ methods
+
 ## [0.1.0-alpha.0] - 2025-11-14
 
 ### Added - Initial Release
@@ -59,7 +97,8 @@ This is the first pre-release of `reolink-aio` - a TypeScript implementation of 
 - Response future cleanup to prevent accumulation in long-running sessions
 
 ### Known Limitations
-- PTZ control not yet implemented
+
+- ~~PTZ control not yet implemented~~ ✅ Completed in v0.1.0-alpha.1
 - Snapshot capture not yet implemented
 - Advanced configuration management (OSD, schedules, zones) not yet implemented
 - Integration tests pending
@@ -74,5 +113,6 @@ This is the first pre-release of `reolink-aio` - a TypeScript implementation of 
 - Requires Node.js 18+
 - TypeScript 5.3+
 
-[Unreleased]: https://github.com/verheesj/reolink-aio-ts/compare/v0.1.0-alpha.0...HEAD
+[Unreleased]: https://github.com/verheesj/reolink-aio-ts/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/verheesj/reolink-aio-ts/compare/v0.1.0-alpha.0...v0.1.0-alpha.1
 [0.1.0-alpha.0]: https://github.com/verheesj/reolink-aio-ts/releases/tag/v0.1.0-alpha.0

@@ -1,6 +1,6 @@
 {
   "name": "reolink-aio",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "TypeScript library for Reolink NVR/camera API with full Baichuan TCP protocol support",
   "license": "MIT",
   "author": "verheesj",

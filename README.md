@@ -52,7 +52,7 @@ This project implements Reolink’s private Baichuan API — the same API used b
 - ✅ **Siren** - Activate camera siren/audio alarm (fully working!)
 - ✅ **Focus Control** - Set camera focus position
 - ✅ **Zoom Control** - Set camera zoom position
-- 🔧 **PTZ Control** - Pan/Tilt/Zoom operations *(planned)*
+- ✅ **PTZ Control** - Pan/Tilt/Zoom operations with presets, patrols, guard positions, and auto-tracking
 
 ### 📊 Device Information
 
@@ -114,6 +114,13 @@ await host.setSiren(0, false);      // Stop siren immediately
 // Control zoom and focus (for cameras that support it)
 await host.setZoom(0, 16);   // Set zoom position (0-33 typically)
 await host.setFocus(0, 128); // Set focus position (0-255 typically)
+
+// PTZ control (for cameras with Pan/Tilt/Zoom)
+await host.ptzControl(0, 'Left', undefined, 32);  // Move left at speed 32
+await host.gotoPreset(0, 'Home');                  // Go to preset position
+await host.startPatrol(0);                         // Start auto patrol
+await host.setPtzGuard(0, 'set');                  // Set current position as guard
+await host.setAutoTracking(0, true);               // Enable auto-tracking
 ```
 
 ### Real-Time Motion Detection
@@ -187,6 +194,7 @@ The `examples/` directory contains complete, working examples:
 | [05-event-webhook.ts](examples/05-event-webhook.ts) | Webhook event receiver | 🔴 Advanced |
 | [06-scheduled-backup.ts](examples/06-scheduled-backup.ts) | Automated backup system | 🔴 Advanced |
 | [07-device-control.ts](examples/07-device-control.ts) | Control IR, spotlight, siren, zoom | 🟢 Beginner |
+| [08-ptz-control.ts](examples/08-ptz-control.ts) | PTZ movement, presets, patrols, tracking | 🟡 Intermediate |
 
 ### Running Examples
 
@@ -236,13 +244,34 @@ new Host(
 - `visitorDetected(channel)` - Check if doorbell pressed
 - `irEnabled(channel)` - Check if IR lights enabled
 
-#### Device Control
+#### Control Methods
 
 - `setIrLights(channel, enabled)` - Control IR illumination
 - `setSpotlight(channel, enabled, brightness?)` - Control spotlight/floodlight
 - `setSiren(channel, enabled, duration?)` - Activate siren/audio alarm
 - `setFocus(channel, position)` - Set focus position (0-255)
 - `setZoom(channel, position)` - Set zoom position (0-33 typically)
+
+#### PTZ Methods
+
+- `ptzControl(channel, command?, preset?, speed?, patrol?)` - Manual PTZ control
+- `gotoPreset(channel, preset)` - Move to preset position
+- `getPtzPresets(channel)` - Get available presets
+- `getPtzPatrols(channel)` - Get available patrols
+- `startPatrol(channel)` - Start auto patrol
+- `stopPatrol(channel)` - Stop auto patrol
+- `getPtzPanPosition(channel)` - Get current pan position
+- `getPtzTiltPosition(channel)` - Get current tilt position
+- `isPtzGuardEnabled(channel)` - Check if guard enabled
+- `getPtzGuardTime(channel)` - Get guard return time
+- `setPtzGuard(channel, command?, enable?, time?)` - Configure guard position
+- `ptzCalibrate(channel)` - Calibrate PTZ
+- `isAutoTrackingEnabled(channel)` - Check if auto-tracking enabled
+- `setAutoTracking(channel, enable?, disappearTime?, stopTime?, method?)` - Configure auto-tracking
+- `getAutoTrackMethod(channel)` - Get tracking method
+- `getAutoTrackLimitLeft(channel)` - Get left limit
+- `getAutoTrackLimitRight(channel)` - Get right limit
+- `setAutoTrackLimit(channel, left?, right?)` - Set tracking limits
 
 #### Device Information
 
@@ -265,11 +294,14 @@ new Host(
   - [x] `setFocus()` - Focus control
   - [x] `setZoom()` - Digital zoom
 
-- [ ] **PTZ (Pan/Tilt/Zoom)**
-  - [ ] `ptzControl()` - Manual PTZ movement
-  - [ ] `getPtzPresets()` - List presets
-  - [ ] `gotoPreset()` - Move to preset
-  - [ ] `startPatrol()` / `stopPatrol()` - Auto patrol
+- [x] **PTZ (Pan/Tilt/Zoom)**
+  - [x] `ptzControl()` - Manual PTZ movement
+  - [x] `getPtzPresets()` - List presets
+  - [x] `gotoPreset()` - Move to preset
+  - [x] `startPatrol()` / `stopPatrol()` - Auto patrol
+  - [x] `setPtzGuard()` - Guard position control
+  - [x] `setAutoTracking()` - Auto-tracking configuration
+  - [x] Position getters and patrol management
 
 - [ ] **Video Streaming**
   - [ ] Live stream helpers
@@ -325,6 +357,7 @@ new Host(
 - [x] NVR detection
 - [x] Multi-channel support
 - [x] Device control commands (IR, spotlight, siren, focus, zoom)
+- [x] PTZ control (movement, presets, patrols, guard, auto-tracking)
 - [x] Baichuan TCP protocol fixes (XML formatting, future cleanup)
 
 ---

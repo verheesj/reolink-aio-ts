@@ -14,10 +14,10 @@ import { Host } from '../src';
 
 async function main() {
   // UPDATE THESE VALUES
-  const cameraIp = '192.168.1.100';
+  const cameraIp = '192.168.0.79';
   const username = 'admin';
-  const password = 'your_password';
-  const channel = 0; // Channel to control
+  const password = 'ABC123abc';
+  const channel = 1; // Channel to control
 
   console.log('🎛️  Device Control Example\n');
   console.log('=' .repeat(50));
