@@ -100,7 +100,7 @@ export class Host {
 
   // States
   private motionDetectionStates: Map<number, boolean> = new Map();
-  private aiDetectionStates: Map<number, Map<string, boolean>> = new Map();
+  private aiDetectionStates: Map<number, Map<string, boolean | Map<number, Map<number, string>>>> = new Map();
   private visitorStates: Map<number, boolean> = new Map();
 
   // Settings
@@ -973,7 +973,32 @@ export class Host {
 
   aiDetected(channel: number, objectType: string): boolean {
     const aiVal = this.aiDetectionStates.get(channel)?.get(objectType);
-    return aiVal || false;
+    return aiVal as boolean || false;
+  }
+
+  private perimeterDetected(channel: number, perimeterType: string): Map<number, Map<number, string>> {
+    const perimeterVal = this.aiDetectionStates.get(channel)?.get(perimeterType);
+    return perimeterVal as Map<number, Map<number, string>>;
+  }
+
+  crosslineDetected(channel: number): Map<number, Map<number, string>> {
+    return this.perimeterDetected(channel, 'crossline');
+  }
+
+  intrusionDetected(channel: number): Map<number, Map<number, string>> {
+    return this.perimeterDetected(channel, 'intrusion');
+  }
+
+  loiteringDetected(channel: number): Map<number, Map<number, string>> {
+    return this.perimeterDetected(channel, 'loitering');
+  }
+
+  forgottenDetected(channel: number): Map<number, Map<number, string>> {
+    return this.perimeterDetected(channel, 'legacy');
+  }
+
+  takenDetected(channel: number): Map<number, Map<number, string>> {
+    return this.perimeterDetected(channel, 'loss');
   }
 
   visitorDetected(channel: number): boolean {
@@ -2601,7 +2626,7 @@ export class Host {
     return this.visitorStates;
   }
 
-  get _aiDetectionStates(): Map<number, Map<string, boolean>> {
+  get _aiDetectionStates(): Map<number, Map<string, boolean | Map<number, Map<number, string>>>> {
     return this.aiDetectionStates;
   }
 

@@ -908,6 +908,31 @@ export class Baichuan {
                     }
                     aiStates.set(aiTypeKey, aiState);
                   }
+
+                  if (alarmEvent.smartAiTypeList) {
+                    const smartAiTypeList = Array.isArray(alarmEvent.smartAiTypeList) ? alarmEvent.smartAiTypeList : [ alarmEvent.smartAiTypeList ];
+                    for (const { smartAiType } of smartAiTypeList) {
+                      const { type: perimeterType, index: perimeterBitmask } = smartAiType;
+                      if (!perimeterType || !perimeterBitmask) continue;
+
+                      const perimeterDetections: Map<number, Map<number, string>> = new Map();
+                      for (let bit = 1; bit <= perimeterBitmask; bit <<= 1) {
+                        const detected = perimeterBitmask & bit;
+                        if (detected) {
+                          const subList = smartAiType.subList;
+                          if (!subList) continue;
+
+                          const location = Math.log2(bit);
+                          const detection: Map<number, string> = new Map();
+                          detection.set(subList.index, subList.type);
+                          perimeterDetections.set(location, detection);
+                        }
+                      }
+                      aiStates.set(perimeterType, perimeterDetections);
+                    }
+                  } else {
+                    [ 'crossline', 'intrusion', 'loitering', 'legacy', 'loss'].forEach(type => this.httpApi._aiDetectionStates.get(channel)?.delete(type));
+                  }
                 }
 
                 // Handle "other" AI type for PIR/battery cams

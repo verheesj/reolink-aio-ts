@@ -67,6 +67,11 @@ async function motionMonitor() {
       const face = host.aiDetected(channel, 'face');
       const package_ = host.aiDetected(channel, 'package');
       const visitor = host.visitorDetected(channel);
+      const crossline = host.crosslineDetected(channel);
+      const intrusion = host.intrusionDetected(channel);
+      const loitering = host.loiteringDetected(channel);
+      const forgotten = host.forgottenDetected(channel);
+      const taken = host.takenDetected(channel);
       
       console.log(`\n   Channel ${channel} (${host.cameraName(channel)}):`);
       console.log(`      Motion: ${motion ? '🔴 DETECTED' : '🟢 Clear'}`);
@@ -76,6 +81,11 @@ async function motionMonitor() {
       console.log(`      Face: ${face ? '🔴 DETECTED' : '🟢 Clear'}`);
       console.log(`      Package: ${package_ ? '🔴 DETECTED' : '🟢 Clear'}`);
       console.log(`      Visitor: ${visitor ? '🔴 DETECTED' : '🟢 Clear'}`);
+      console.log(`      Crossline: ${crossline ? '🔴 DETECTED' : '🟢 Clear'}`);
+      console.log(`      Intrusion: ${intrusion ? '🔴 DETECTED' : '🟢 Clear'}`);
+      console.log(`      Loitering: ${loitering ? '🔴 DETECTED' : '🟢 Clear'}`);
+      console.log(`      Forgotten: ${forgotten ? '🔴 DETECTED' : '🟢 Clear'}`);
+      console.log(`      Taken: ${taken ? '🔴 DETECTED' : '🟢 Clear'}`);
     }
 
     // Subscribe to events
@@ -97,9 +107,14 @@ async function motionMonitor() {
           const face = host.aiDetected(channel, 'face');
           const package_ = host.aiDetected(channel, 'package');
           const visitor = host.visitorDetected(channel);
+          const crossline = host.crosslineDetected(channel);
+          const intrusion = host.intrusionDetected(channel);
+          const loitering = host.loiteringDetected(channel);
+          const forgotten = host.forgottenDetected(channel);
+          const taken = host.takenDetected(channel);
           
           // Only log when there's activity
-          if (motion || person || vehicle || pet || face || package_ || visitor) {
+          if (motion || person || vehicle || pet || face || package_ || visitor || crossline || intrusion || loitering || forgotten || taken) {
             const timestamp = new Date().toLocaleTimeString();
             console.log(`[${timestamp}] Channel ${channel} (${host.cameraName(channel)}):`);
             if (motion) console.log('   ⚠️  Motion detected!');
@@ -109,6 +124,11 @@ async function motionMonitor() {
             if (face) console.log('   😊 Face detected!');
             if (package_) console.log('   📦 Package detected!');
             if (visitor) console.log('   🚪 Visitor detected!');
+            if (crossline) console.log('   ↔️  Crossline detected!');
+            if (intrusion) console.log('   🥷 Intrusion detected!');
+            if (loitering) console.log('   💤 Loitering detected!');
+            if (forgotten) console.log('   🧱 Forgotten detected!');
+            if (taken) console.log('   🤷 Taken detected!');
             console.log('');
           }
         }
