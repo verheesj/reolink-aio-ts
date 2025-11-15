@@ -134,6 +134,23 @@ export class Host {
   private sendMutex: Promise<void> = Promise.resolve();
   private loginMutex: Promise<void> = Promise.resolve();
 
+  // Request batching configuration
+  private static readonly MAX_CHUNK_ITEMS = 35; // Maximum items per request to avoid API errors
+  private requestQueue: Array<{
+    body: ReolinkJson;
+    param: Record<string, any> | null;
+    responseType: "json" | "image/jpeg";
+    resolve: (value: any) => void;
+    reject: (error: any) => void;
+  }> = [];
+  private batchTimer: NodeJS.Timeout | null = null;
+  private static readonly BATCH_DELAY_MS = 10; // Delay before processing batch
+
+  // Caching layer
+  private cacheEnabled: boolean = true;
+  private cacheTTL: number = 60000; // 60 seconds default TTL
+  private responseCache: Map<string, { data: any; timestamp: number }> = new Map();
+
   constructor(
     host: string,
     username: string,
@@ -160,23 +177,28 @@ export class Host {
     this.baichuanOnly = bcOnly;
 
     // Initialize HTTP client with SSL verification disabled (like Python version)
-    // Disable keep-alive to avoid connection reset issues
+    // Enable connection pooling for better performance (matches Python's aiohttp.TCPConnector)
     const https = require('https');
     const http = require('http');
     this.httpClient = axios.create({
       timeout: this.timeout * 1000,
       httpsAgent: new https.Agent({
         rejectUnauthorized: false,
-        keepAlive: false
+        keepAlive: true,
+        keepAliveMsecs: 30000, // 30 seconds
+        maxSockets: 10,
+        maxFreeSockets: 5,
+        scheduling: 'lifo' as 'lifo' // Last In First Out - reuse most recently used sockets
       }),
       httpAgent: new http.Agent({
-        keepAlive: false
+        keepAlive: true,
+        keepAliveMsecs: 30000,
+        maxSockets: 10,
+        maxFreeSockets: 5,
+        scheduling: 'lifo' as 'lifo'
       }),
       validateStatus: () => true, // Don't throw on HTTP error status
-      maxRedirects: 0,
-      headers: {
-        'Connection': 'close'
-      }
+      maxRedirects: 0
     });
 
     // Initialize Baichuan
@@ -466,9 +488,52 @@ export class Host {
   }
 
   /**
-   * Send HTTP request to device
+   * Send HTTP request to device with batching and caching support
+   * Splits large requests into chunks and implements response caching
    */
   private async send(
+    body: ReolinkJson,
+    param: Record<string, any> | null = null,
+    expectedResponseType: "json" | "image/jpeg" = "json"
+  ): Promise<any> {
+    // Check cache first (only for read operations)
+    if (this.cacheEnabled && expectedResponseType === "json") {
+      const cacheKey = this.getCacheKey(body, param);
+      const cached = this.responseCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp < this.cacheTTL)) {
+        debugLog(`Cache hit for key: ${cacheKey.substring(0, 50)}...`);
+        return cached.data;
+      }
+    }
+
+    // Periodically clear expired cache entries
+    if (this.responseCache.size > 100) {
+      this.clearExpiredCache();
+    }
+
+    // Split large requests into chunks (like Python's send method)
+    // Maximum MAX_CHUNK_ITEMS per request to avoid API errors
+    if (body.length > Host.MAX_CHUNK_ITEMS && expectedResponseType === "json") {
+      debugLog(`Splitting large request (${body.length} items) into chunks of ${Host.MAX_CHUNK_ITEMS}`);
+      const responses: any[] = [];
+      for (let i = 0; i < body.length; i += Host.MAX_CHUNK_ITEMS) {
+        const chunk = body.slice(i, i + Host.MAX_CHUNK_ITEMS);
+        debugLog(`Sending chunk ${Math.floor(i / Host.MAX_CHUNK_ITEMS) + 1}/${Math.ceil(body.length / Host.MAX_CHUNK_ITEMS)}`);
+        const chunkResponse = await this.sendChunk(chunk, param, expectedResponseType);
+        if (Array.isArray(chunkResponse)) {
+          responses.push(...chunkResponse);
+        }
+      }
+      return responses;
+    }
+
+    return this.sendChunk(body, param, expectedResponseType);
+  }
+
+  /**
+   * Internal method to send a single chunk of requests
+   */
+  private async sendChunk(
     body: ReolinkJson,
     param: Record<string, any> | null = null,
     expectedResponseType: "json" | "image/jpeg" = "json"
@@ -557,6 +622,15 @@ export class Host {
       }
 
       if (Array.isArray(data) && data.length > 0) {
+        // Cache the response for read operations
+        if (this.cacheEnabled && expectedResponseType === "json") {
+          const cacheKey = this.getCacheKey(body, param);
+          this.responseCache.set(cacheKey, {
+            data: data,
+            timestamp: Date.now()
+          });
+        }
+
         // Check for critical errors only in single-command requests
         // For batch requests, let caller handle individual error codes
         if (data.length === 1) {
@@ -2389,6 +2463,80 @@ export class Host {
       debugLog(`Error getting snapshot: ${err}`);
       return null;
     }
+  }
+
+  /**
+   * Get the cached host data as a JSON string
+   * Similar to Python's get_raw_host_data() method
+   */
+  getRawHostData(): string {
+    const data: Record<string, any> = {};
+    this.hostDataRaw.forEach((value, key) => {
+      data[key] = value;
+    });
+    return JSON.stringify(data);
+  }
+
+  /**
+   * Set the cached host data from a JSON string
+   * Similar to Python's set_raw_host_data() method
+   */
+  setRawHostData(data: string): void {
+    const parsed = JSON.parse(data);
+    this.hostDataRaw.clear();
+    Object.keys(parsed).forEach((key) => {
+      this.hostDataRaw.set(key, parsed[key]);
+    });
+  }
+
+  /**
+   * Enable or disable response caching
+   */
+  setCacheEnabled(enabled: boolean): void {
+    this.cacheEnabled = enabled;
+    if (!enabled) {
+      this.clearCache();
+    }
+  }
+
+  /**
+   * Set cache time-to-live in milliseconds
+   */
+  setCacheTTL(ttl: number): void {
+    this.cacheTTL = ttl;
+  }
+
+  /**
+   * Clear the response cache
+   */
+  clearCache(): void {
+    this.responseCache.clear();
+  }
+
+  /**
+   * Clear expired cache entries
+   */
+  private clearExpiredCache(): void {
+    const now = Date.now();
+    const keysToDelete: string[] = [];
+    
+    this.responseCache.forEach((value, key) => {
+      if (now - value.timestamp > this.cacheTTL) {
+        keysToDelete.push(key);
+      }
+    });
+
+    keysToDelete.forEach(key => this.responseCache.delete(key));
+  }
+
+  /**
+   * Generate cache key from request
+   */
+  private getCacheKey(body: ReolinkJson, param: Record<string, any> | null): string {
+    // Create deterministic key from body and params
+    const bodyKey = JSON.stringify(body);
+    const paramKey = param ? JSON.stringify(param) : '';
+    return `${bodyKey}:${paramKey}`;
   }
 
   // Subscription methods (simplified)

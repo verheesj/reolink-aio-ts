@@ -27,6 +27,7 @@ This project implements Reolink’s private Baichuan API — the same API used b
 - ✅ **NVR & Camera Support** - Works with both standalone cameras and NVR systems
 - ✅ **VOD (Video on Demand)** - Search, browse, and download recorded clips
 - ✅ **Session Management** - Automatic token refresh and connection handling
+- ✅ **Optimization** - Connection pooling, request batching, and response caching
 - ✅ **Error Handling** - Rich exception hierarchy for robust error management
 
 ### 🔔 Real-Time Events
@@ -196,6 +197,7 @@ The `examples/` directory contains complete, working examples:
 | [07-device-control.ts](examples/07-device-control.ts) | Control IR, spotlight, siren, zoom | 🟢 Beginner |
 | [08-ptz-control.ts](examples/08-ptz-control.ts) | PTZ movement, presets, patrols, tracking | 🟡 Intermediate |
 | [09-live-streaming.ts](examples/09-live-streaming.ts) | Live stream URLs, snapshots, encoding | 🟢 Beginner |
+| [10-optimization.ts](examples/10-optimization.ts) | Performance optimization features | 🟢 Beginner |
 
 ### Running Examples
 
