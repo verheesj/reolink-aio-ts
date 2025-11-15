@@ -847,20 +847,25 @@ export class Baichuan {
           if (!eventList) continue;
 
           // Handle both single event and array of events
-          const events = Array.isArray(eventList) ? eventList : [eventList];
+          // Also handle nested AlarmEvent structure
+          const events = Array.isArray(eventList) ? eventList : (Array.isArray(eventList.AlarmEvent) ? eventList.AlarmEvent : [eventList]);
           
           for (const event of events) {
             if (!event) continue;
 
+            // Handle nested AlarmEvent structure
+            const alarmEvent = event.AlarmEvent ?? event;
+            if (!alarmEvent) continue;
+
             // Get channel from the event
-            const channelId = event.channelId || event.channel;
+            const channelId = alarmEvent.channelId ?? alarmEvent.channel;
             if (channelId === undefined) continue;
             
             const channel = Number(channelId);
             if (!this.httpApi._channels.includes(channel)) continue;
 
             // Handle AlarmEvent
-            if (event.status !== undefined || event.AItype !== undefined) {
+            if (alarmEvent.status !== undefined || alarmEvent.AItype !== undefined) {
               // Mark events as active
               if (!this.eventsActive && this.subscribed) {
                 this.eventsActive = true;
@@ -868,8 +873,8 @@ export class Baichuan {
               }
 
               // Parse motion detection state
-              if (event.status !== undefined) {
-                const states = String(event.status);
+              if (alarmEvent.status !== undefined) {
+                const states = String(alarmEvent.status);
                 const motionState = states.includes('MD');
                 const visitorState = states.includes('visitor');
 
@@ -889,8 +894,8 @@ export class Baichuan {
               }
 
               // Parse AI detection states
-              if (event.AItype !== undefined) {
-                const aiTypesStr = String(event.AItype);
+              if (alarmEvent.AItype !== undefined) {
+                const aiTypesStr = String(alarmEvent.AItype);
                 const aiTypesList = aiTypesStr.split(',').map(t => t.trim());
                 const aiStates = this.httpApi._aiDetectionStates.get(channel);
                 
