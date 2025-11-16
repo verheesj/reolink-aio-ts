@@ -101,8 +101,8 @@ export class Host {
   // States
   private motionDetectionStates: Map<number, boolean> = new Map();
   private aiDetectionStates: Map<number, Map<string, boolean>> = new Map();
-  // Perimeter (Smart AI) detection flags per channel per type (e.g., crossline, intrusion)
-  private perimeterDetectionStates: Map<number, Map<string, boolean>> = new Map();
+  // Perimeter (Smart AI) detection: per channel, per type, set of active zone IDs
+  private perimeterDetectionStates: Map<number, Map<string, Set<number>>> = new Map();
   private visitorStates: Map<number, boolean> = new Map();
 
   // Settings
@@ -980,8 +980,8 @@ export class Host {
 
   // Perimeter (Smart AI) helpers
   private perimeterDetected(channel: number, perimeterType: string): boolean {
-    const perim = this.perimeterDetectionStates.get(channel)?.get(perimeterType);
-    return typeof perim === 'boolean' ? perim : false;
+    const zones = this.perimeterDetectionStates.get(channel)?.get(perimeterType);
+    return zones ? zones.size > 0 : false;
   }
 
   crosslineDetected(channel: number): boolean {
@@ -1003,6 +1003,17 @@ export class Host {
 
   takenDetected(channel: number): boolean {
     return this.perimeterDetected(channel, 'loss');
+  }
+
+  /**
+   * Get detailed zone information for a perimeter type
+   * @param channel - Channel number
+   * @param perimeterType - Type: 'crossline', 'intrusion', 'loitering', 'legacy', 'loss'
+   * @returns Array of active zone IDs (from bitmask), or empty array
+   */
+  getPerimeterZones(channel: number, perimeterType: string): number[] {
+    const zones = this.perimeterDetectionStates.get(channel)?.get(perimeterType);
+    return zones ? Array.from(zones).sort((a, b) => a - b) : [];
   }
 
   visitorDetected(channel: number): boolean {
@@ -2599,7 +2610,7 @@ export class Host {
   }
 
   // Expose perimeter map to Baichuan for updates
-  get _perimeterDetectionStates(): Map<number, Map<string, boolean>> {
+  get _perimeterDetectionStates(): Map<number, Map<string, Set<number>>> {
     return this.perimeterDetectionStates;
   }
 

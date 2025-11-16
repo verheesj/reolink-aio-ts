@@ -936,7 +936,7 @@ export class Baichuan {
                 // Ensure we have a map to update
                 let perimMap = this.httpApi._perimeterDetectionStates.get(channel);
                 if (!perimMap) {
-                  perimMap = new Map<string, boolean>();
+                  perimMap = new Map<string, Set<number>>();
                   this.httpApi._perimeterDetectionStates.set(channel, perimMap);
                 }
 
@@ -949,22 +949,44 @@ export class Baichuan {
                   if (!item) continue;
                   const smart = (item as any).smartAiType ?? item;
                   const perimeterType = smart?.type as string | undefined;
+                  const bitmask = smart?.index as number | undefined;
                   if (!perimeterType) continue;
                   seen.add(perimeterType);
-                  const prev = perimMap.get(perimeterType) || false;
-                  if (!prev) {
-                    debugLog(`Reolink ${this.httpApi.nvrName} TCP event channel ${channel}, perimeter ${perimeterType}: true`);
+
+                  // Parse bitmask to extract active zone IDs
+                  let zones = perimMap.get(perimeterType);
+                  if (!zones) {
+                    zones = new Set<number>();
+                    perimMap.set(perimeterType, zones);
                   }
-                  perimMap.set(perimeterType, true);
+
+                  const prevSize = zones.size;
+                  zones.clear(); // Clear previous zones for this type
+
+                  if (bitmask !== undefined && bitmask > 0) {
+                    // Extract zone IDs from bitmask (bit positions)
+                    for (let bit = 0; bit < 32; bit++) {
+                      if (bitmask & (1 << bit)) {
+                        zones.add(bit);
+                      }
+                    }
+                  }
+
+                  if (zones.size > 0 && prevSize === 0) {
+                    debugLog(`Reolink ${this.httpApi.nvrName} TCP event channel ${channel}, perimeter ${perimeterType}: zones ${Array.from(zones).join(', ')}`);
+                  } else if (zones.size === 0 && prevSize > 0) {
+                    debugLog(`Reolink ${this.httpApi.nvrName} TCP event channel ${channel}, perimeter ${perimeterType}: cleared`);
+                  }
                 }
 
-                // For known perimeter types not seen in this event, set false
+                // For known perimeter types not seen in this event, clear zones
                 for (const type of Object.keys(SMART_AI)) {
                   if (!seen.has(type)) {
-                    if (perimMap.get(type)) {
-                      debugLog(`Reolink ${this.httpApi.nvrName} TCP event channel ${channel}, perimeter ${type}: false`);
+                    const zones = perimMap.get(type);
+                    if (zones && zones.size > 0) {
+                      debugLog(`Reolink ${this.httpApi.nvrName} TCP event channel ${channel}, perimeter ${type}: cleared`);
+                      zones.clear();
                     }
-                    perimMap.set(type, false);
                   }
                 }
               }
