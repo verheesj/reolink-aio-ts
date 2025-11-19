@@ -61,7 +61,7 @@ async function motionMonitor() {
     console.log('📊 Initial States:');
     for (const channel of host.channelsValue) {
       const motion = host.motionDetected(channel);
-      const person = host.aiDetected(channel, 'person');
+      const person = host.aiDetected(channel, 'person') || host.aiDetected(channel, 'people');
       const vehicle = host.aiDetected(channel, 'vehicle');
       const pet = host.aiDetected(channel, 'dog_cat');  // Animal/pet detection
       const face = host.aiDetected(channel, 'face');
@@ -96,53 +96,54 @@ async function motionMonitor() {
     await host.baichuan.subscribeEvents();
 
     // Monitor state changes
-    const checkInterval = setInterval(async () => {
+    const channelCallback: host.baichuan.CallbackFunction = (cmdId: number | null = null, channel: number | null = null) => {
+      if (channel === null) {
+        return;
+      }
       try {
-        await host.getStates();
+        const motion = host.motionDetected(channel);
+        const person = host.aiDetected(channel, 'person') || host.aiDetected(channel, 'people');
+        const vehicle = host.aiDetected(channel, 'vehicle');
+        const pet = host.aiDetected(channel, 'dog_cat');  // Animal/pet detection
+        const face = host.aiDetected(channel, 'face');
+        const package_ = host.aiDetected(channel, 'package');
+        const visitor = host.visitorDetected(channel);
+        // Perimeter (Smart AI)
+        const crossline = host.crosslineDetected(channel);
+        const intrusion = host.intrusionDetected(channel);
+        const loitering = host.loiteringDetected(channel);
+        const forgotten = host.forgottenDetected(channel);
+        const taken = host.takenDetected(channel);
         
-        for (const channel of host.channelsValue) {
-          const motion = host.motionDetected(channel);
-          const person = host.aiDetected(channel, 'person');
-          const vehicle = host.aiDetected(channel, 'vehicle');
-          const pet = host.aiDetected(channel, 'dog_cat');  // Animal/pet detection
-          const face = host.aiDetected(channel, 'face');
-          const package_ = host.aiDetected(channel, 'package');
-          const visitor = host.visitorDetected(channel);
-          // Perimeter (Smart AI)
-          const crossline = host.crosslineDetected(channel);
-          const intrusion = host.intrusionDetected(channel);
-          const loitering = host.loiteringDetected(channel);
-          const forgotten = host.forgottenDetected(channel);
-          const taken = host.takenDetected(channel);
-          
-          // Only log when there's activity
-          if (motion || person || vehicle || pet || face || package_ || visitor || crossline?.size || intrusion?.size || loitering?.size || forgotten?.size || taken?.size) {
-            const timestamp = new Date().toLocaleTimeString();
-            console.log(`[${timestamp}] Channel ${channel} (${host.cameraName(channel)}):`);
-            if (motion) console.log('   ⚠️  Motion detected!');
-            if (person) console.log('   👤 Person detected!');
-            if (vehicle) console.log('   🚗 Vehicle detected!');
-            if (pet) console.log('   🐾 Pet/Animal detected!');
-            if (face) console.log('   😊 Face detected!');
-            if (package_) console.log('   📦 Package detected!');
-            if (visitor) console.log('   🚪 Visitor detected!');
-            if (crossline?.size) console.log('   ↔️  Crossline detected!');
-            if (intrusion?.size) console.log('   🥷 Intrusion detected!');
-            if (loitering?.size) console.log('   💤 Loitering detected!');
-            if (forgotten?.size) console.log('   🧱 Forgotten detected!');
-            if (taken?.size) console.log('   🤷 Taken detected!');
-            console.log('');
-          }
+        // Only log when there's activity
+        if (motion || person || vehicle || pet || face || package_ || visitor || crossline?.size || intrusion?.size || loitering?.size || forgotten?.size || taken?.size) {
+          const timestamp = new Date().toLocaleTimeString();
+          console.log(`[${timestamp}] Channel ${channel} (${host.cameraName(channel)}):`);
+          if (motion) console.log('   ⚠️  Motion detected!');
+          if (person) console.log('   👤 Person detected!');
+          if (vehicle) console.log('   🚗 Vehicle detected!');
+          if (pet) console.log('   🐾 Pet/Animal detected!');
+          if (face) console.log('   😊 Face detected!');
+          if (package_) console.log('   📦 Package detected!');
+          if (visitor) console.log('   🚪 Visitor detected!');
+          if (crossline?.size) console.log('   ↔️  Crossline detected!');
+          if (intrusion?.size) console.log('   🥷 Intrusion detected!');
+          if (loitering?.size) console.log('   💤 Loitering detected!');
+          if (forgotten?.size) console.log('   🧱 Forgotten detected!');
+          if (taken?.size) console.log('   🤷 Taken detected!');
+          console.log('');
         }
       } catch (err) {
         console.error('Error checking states:', err);
       }
-    }, 2000); // Check every 2 seconds
+    };
+    for (const channel of host.channelsValue) {
+      host.baichuan.registerCallback('motion', channelCallback, 33, channel);
+    }
 
     // Handle graceful shutdown
     process.on('SIGINT', async () => {
       console.log('\n\n🛑 Stopping monitor...');
-      clearInterval(checkInterval);
       await host.baichuan.unsubscribeEvents();
       await host.logout();
       console.log('👋 Disconnected');
