@@ -49,7 +49,7 @@ const SMART_AI: Record<string, [number, number]> = {
   loss: [551, 552]
 };
 
-type CallbackFunction = () => void;
+type CallbackFunction = (cmdId: number | null, channel: number | null) => void;
 type CmdListType = Record<string, Record<string, number>> | Record<string, Array<number>> | null;
 
 /**
@@ -994,13 +994,17 @@ export class Baichuan {
                         ? [smartAiType.subList]
                         : [];
 
-                      for (const subList of subLists) {
-                        if (!subList) continue;
-                        const location = Math.log2(bit);
-                        const aiType = subList.type as string;
-                        if (aiType) {
-                          perimeterDetections.set(location, aiType);
+                      if (subLists.size > 0) {
+                        for (const subList of subLists) {
+                          if (!subList) continue;
+                          const location = Math.log2(bit);
+                          const aiType = subList.type as string;
+                          if (aiType) {
+                            perimeterDetections.set(location, aiType);
+                          }
                         }
+                      } else {
+                        perimeterDetections.set(Math.log2(bit), perimeterType);
                       }
                     }
                   }
@@ -1040,7 +1044,7 @@ export class Baichuan {
 
     for (const callback of channelCallbacks.values()) {
       try {
-        callback();
+        callback(cmdId, channel);
       } catch (err) {
         debugLog(`Baichuan host ${this.host}: error executing callback: ${err}`);
       }
